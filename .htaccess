@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# Blog detay SEO URL'si
+RewriteRule ^blog/([a-zA-Z0-9\-]+)/?$ blog_post.php?slug=$1 [L,QSA]
+
+# Blog ana sayfa (liste)
+RewriteRule ^blog/?$ blog.php [L,QSA]
+
+# Ürün detayları (mevcut ise)
+RewriteRule ^urun/([a-zA-Z0-9\-]+)/?$ product.php?slug=$1 [L,QSA]
+RewriteRule ^product/([a-zA-Z0-9\-]+)/?$ product.php?slug=$1 [L,QSA]

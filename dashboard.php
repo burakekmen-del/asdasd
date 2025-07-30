@@ -1,0 +1,165 @@
+<?php
+ini_set('display_errors',1);
+ini_set('display_startup_errors',1);
+error_reporting(E_ALL);
+require_once '../config.php';
+if (!isset($_SESSION['admin_login'])) { header("Location: login.php"); exit; }
+
+// Genel özetler
+$totalProducts = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
+$totalActiveCampaigns = $pdo->query("SELECT COUNT(*) FROM products WHERE campaign_active=1")->fetchColumn();
+$totalUsers = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+$totalComments = $pdo->query("SELECT COUNT(*) FROM product_comments")->fetchColumn();
+$totalBanners = $pdo->query("SELECT COUNT(*) FROM campaign_banners")->fetchColumn();
+
+// Hero ürün yönetimi
+$msg = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['hero_products'])) {
+    $pdo->query("DELETE FROM featured_hero_products");
+    $order = 0;
+    foreach ($_POST['hero_products'] as $pid) {
+        $pid = intval($pid);
+        $pdo->prepare("INSERT INTO featured_hero_products (product_id, display_order) VALUES (?, ?)")->execute([$pid, ++$order]);
+    }
+    $msg = "Hero banner ürünleri güncellendi.";
+}
+
+$heroProducts = $pdo->query("SELECT product_id FROM featured_hero_products ORDER BY display_order ASC")->fetchAll(PDO::FETCH_COLUMN);
+$allProducts = $pdo->query("SELECT id, name_en FROM products WHERE is_active=1 ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+
+?>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Yönetim Paneli</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+    <style>
+        body { background:#f5f7ff; }
+        .dashboard-box { background:#fff; border-radius:16px; box-shadow:0 8px 32px #2563eb13, 0 2px 10px #0002; max-width:800px; margin:40px auto 70px auto; padding:2.7rem 2rem 2.4rem 2rem; }
+        h2 { color:#2563eb; font-weight:700;}
+        .btn-lg { min-width:200px; margin:12px 0; font-size:1.13em; }
+        .summary-row { display:flex; gap:15px; margin-bottom:30px; flex-wrap: wrap;}
+        .summary-box {
+            background: linear-gradient(90deg,#6C5CE7 0%,#00b894 100%);
+            color:#fff; border-radius:11px; padding:18px 28px;
+            box-shadow:0 2px 12px #6c5ce766;
+            min-width: 170px; text-align: center; flex:1 1 170px;
+            font-size: 1.12em; font-weight: 600;
+            display: flex; flex-direction:column; align-items:center; justify-content:center;
+        }
+        .summary-box i { font-size:1.7em; margin-bottom:7px; opacity:.89;}
+        .hero-featured-admin { background:#f8f8ff; border-radius:12px; padding:22px 18px; margin-bottom:33px; box-shadow:0 2px 10px #6c5ce71a;}
+        .hero-featured-admin h4 { font-size:1.12rem; font-weight:700; color:#6c5ce7; margin-bottom:13px;}
+        .hero-featured-list { display:flex; gap:9px; flex-wrap:wrap; margin-bottom:11px;}
+        .hero-featured-list .badge { font-size:1.06em; padding:7px 12px; background:#6C5CE7; color:#fff; border-radius:7px; display:flex; align-items:center; gap:7px;}
+        .hero-featured-list .badge .fa-times { cursor:pointer; margin-left:6px; }
+        .backup-log-box { background:#f1f0ff; border-radius:13px; padding:22px 18px; margin-bottom:33px; box-shadow:0 2px 10px #6c5ce71a;}
+        .backup-log-box h4 { font-size:1.11rem; font-weight:700; color:#5649c0; margin-bottom:13px;}
+        .backup-log-box .btn { min-width:180px; margin-right:12px; margin-bottom:8px; }
+        .backup-log-box .form-text { font-size:.98em;}
+        @media (max-width:800px) {
+            .dashboard-box { padding:1.2rem 0.2rem;}
+            .summary-row { flex-direction:column; gap:7px;}
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-box">
+        <h2>Yönetim Paneli</h2>
+
+        <!-- Özet kutuları -->
+        <div class="summary-row">
+            <div class="summary-box"><i class="fa fa-box"></i>Toplam Ürün<br><span><?= $totalProducts ?></span></div>
+            <div class="summary-box"><i class="fa fa-tags"></i>Aktif Kampanya<br><span><?= $totalActiveCampaigns ?></span></div>
+            <div class="summary-box"><i class="fa fa-users"></i>Kullanıcı<br><span><?= $totalUsers ?></span></div>
+            <div class="summary-box"><i class="fa fa-comments"></i>Yorum<br><span><?= $totalComments ?></span></div>
+            <div class="summary-box"><i class="fa fa-image"></i>Banner<br><span><?= $totalBanners ?></span></div>
+        </div>
+
+        <!-- Yedekleme ve Loglama -->
+        <div class="backup-log-box">
+            <h4><i class="fa fa-database"></i> Tek Tuşla Yedek & Loglama</h4>
+            <a href="backup.php" class="btn btn-primary" target="_blank"><i class="fa fa-download"></i> Veritabanı Yedeği Al (.sql)</a>
+            <div class="form-text mt-2">
+                <b>Yedek dosyalarını düzenli olarak bilgisayarınıza kaydedin. Loglar yalnızca adminlere açıktır.</b>
+            </div>
+        </div>
+
+        <!-- Hero ürün yönetimi -->
+        <div class="hero-featured-admin">
+            <h4>
+                Ana Sayfa "Hero" Alanı Ürünleri <small class="text-muted">(3-4 ürün seç)</small>
+            </h4>
+            <?php if(!empty($msg)): ?>
+                <div class="alert alert-success"><?= htmlspecialchars($msg) ?></div>
+            <?php endif; ?>
+            <form method="post">
+                <div class="hero-featured-list mb-2">
+                    <?php foreach($heroProducts as $hid):
+                        $p = array_filter($allProducts, function($item) use ($hid) { return $item['id'] == $hid; });
+                        $p = reset($p);
+                        if($p):
+                    ?>
+                        <span class="badge">
+                            <?= htmlspecialchars($p['name_en']) ?>
+                            <a href="#" class="text-light remove-hero-product" data-id="<?= $hid ?>"><i class="fa fa-times"></i></a>
+                            <input type="hidden" name="hero_products[]" value="<?= $hid ?>">
+                        </span>
+                    <?php endif; endforeach; ?>
+                </div>
+                <div class="input-group mb-2">
+                    <select id="heroProductSelect" class="form-select">
+                        <option value="">Ürün Seç...</option>
+                        <?php foreach($allProducts as $p):
+                            if(in_array($p['id'],$heroProducts)) continue; ?>
+                            <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name_en']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" class="btn btn-info" id="addHeroProductBtn"><i class="fa fa-plus"></i> Ekle</button>
+                </div>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </form>
+            <div class="form-text mt-2">Buradan seçili ürünler ana sayfanın üst kısmında "öne çıkan" olarak gözükecektir. Sürükle-bırak sıralama için ek geliştirme yapılabilir.</div>
+        </div>
+
+        <!-- Mevcut hızlı erişim butonları -->
+        <a href="products.php" class="btn btn-primary btn-lg"><i class="fa fa-list"></i> Ürün Listesi</a><br>
+        <a href="product_add.php" class="btn btn-success btn-lg"><i class="fa fa-plus"></i> Ürün Ekle</a><br>
+        <a href="categories.php" class="btn btn-info btn-lg"><i class="fa fa-tags"></i> Kategoriler</a><br>
+        <a href="admin_kampanya.php" class="btn btn-warning btn-lg"><i class="fa fa-bullhorn"></i> Kampanya Gönder</a><br>
+        <a href="banner.php" class="btn btn-dark btn-lg"><i class="fa fa-image"></i> Banner Yönetimi</a><br>
+		<a href="featured_hero_products.php" class="btn btn-warning btn-lg"><i class="fa fa-star"></i> Hero Banner Ürünleri</a><br>
+        <a href="comments.php" class="btn btn-danger btn-lg"><i class="fa fa-comments"></i> Yorum Şikayetleri</a><br>
+        <a href="analiz.php" class="btn btn-info btn-lg"><i class="fa fa-chart-bar"></i> Analiz</a>
+        <a href="logout.php" class="btn btn-secondary mt-4"><i class="fa fa-sign-out-alt"></i> Çıkış Yap</a>
+    </div>
+    <script>
+    // Hero ürünleri ekle/çıkar (JS ile)
+    document.getElementById('addHeroProductBtn').onclick = function(){
+        var sel = document.getElementById('heroProductSelect');
+        var val = sel.value, txt = sel.options[sel.selectedIndex].text;
+        if(!val) return;
+        // Maksimum 4 ürün
+        var current = document.querySelectorAll('.hero-featured-list input[name="hero_products[]"]').length;
+        if(current >= 4) { alert('En fazla 4 ürün seçebilirsiniz!'); return; }
+        // Zaten ekli mi
+        if(document.querySelector('.hero-featured-list input[value="'+val+'"]')) return;
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.innerHTML = txt+' <a href="#" class="text-light remove-hero-product" data-id="'+val+'"><i class="fa fa-times"></i></a>' +
+            '<input type="hidden" name="hero_products[]" value="'+val+'">';
+        document.querySelector('.hero-featured-list').appendChild(badge);
+    };
+    // Silme
+    document.addEventListener('click', function(e){
+        if(e.target.closest('.remove-hero-product')){
+            e.preventDefault();
+            var badge = e.target.closest('.badge');
+            if(badge) badge.remove();
+        }
+    });
+    </script>
+</body>
+</html>
